@@ -43,6 +43,9 @@ optional_dependencies = {
         'aiounittest',
         'playwright>=1.20',
         'num2words'
+    ],
+    'julia': [
+        'juliacall'
     ]
 }
 
@@ -258,3 +261,7 @@ setup(
     },
     extras_require=optional_dependencies,
 )
+
+# Install Julia dependencies.
+import juliapkg
+juliapkg.resolve(force=True)
