@@ -45,6 +45,7 @@ optional_dependencies = {
         'num2words'
     ],
     'julia': [
+        'juliapkg',
         'juliacall'
     ]
 }
@@ -261,7 +262,3 @@ setup(
     },
     extras_require=optional_dependencies,
 )
-
-# Install Julia dependencies.
-import juliapkg
-juliapkg.resolve(force=True)
