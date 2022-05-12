@@ -1,4 +1,4 @@
-module EComp1Test
+module ECompTest
 
 using OpenMDAOCore
 
@@ -19,7 +19,6 @@ end
 
 function OpenMDAOCore.compute_partials!(self::EComp1, inputs, partials)
     partials["y", "x"][1] = 4*inputs["x"][1]
-    @show 4*inputs["x"]
     return nothing
 end
 
@@ -60,12 +59,12 @@ function OpenMDAOCore.setup(self::EComp3)
 end
 
 function OpenMDAOCore.compute!(self::EComp3, inputs, outputs)
-    outputs["y"][1] = 2*self.a[1]*inputs["x"][1]^2 + 1
+    outputs["y"][1] = 2*self.a[3]*inputs["x"][1]^2 + 1
     return nothing
 end
 
 function OpenMDAOCore.compute_partials!(self::EComp3, inputs, partials)
-    partials["y", "x"][1] = 4*self.a[1]*inputs["x"][1]
+    partials["y", "x"][1] = 4*self.a[3]*inputs["x"][1]
     return nothing
 end
 
