@@ -245,4 +245,70 @@ function OpenMDAOCore.apply_linear!(self::MatrixFreeImplicit, inputs, outputs, d
     end
 end
 
+struct GuessNonlinearImplicit{TI,TF} <: OpenMDAOCore.AbstractImplicitComp
+    n::TI  # these would be like "options" in openmdao
+    xguess::TF
+    xlower::TF
+    xupper::TF
+end
+
+function OpenMDAOCore.setup(self::GuessNonlinearImplicit)
+    n = self.n
+    xlower = self.xlower
+    xupper = self.xupper
+    inputs = [
+        VarData("a"; shape=n, val=[2.0]),
+        VarData("b"; shape=(n,), val=3.0),
+        VarData("c"; shape=(n,), val=3.0)]
+
+    outputs = [VarData("x"; shape=n, val=3.0, lower=xlower, upper=xupper)]
+
+    rows = 0:n-1
+    cols = 0:n-1
+    partials = [
+        PartialsData("x", "a"; rows=rows, cols=cols),
+        PartialsData("x", "b"; rows, cols),
+        PartialsData("x", "c"; rows, cols),
+        PartialsData("x", "x"; rows, cols),
+    ]
+
+    return inputs, outputs, partials
+end
+
+function OpenMDAOCore.apply_nonlinear!(self::GuessNonlinearImplicit, inputs, outputs, residuals)
+    a = inputs["a"]
+    b = inputs["b"]
+    c = inputs["c"]
+    x = outputs["x"]
+    Rx = residuals["x"]
+
+    @. Rx = a*x^2 + b*x + c
+
+    return nothing
+end
+
+function OpenMDAOCore.linearize!(self::GuessNonlinearImplicit, inputs, outputs, partials)
+    a = inputs["a"]
+    b = inputs["b"]
+    c = inputs["c"]
+    x = outputs["x"]
+
+    dRx_da = partials["x", "a"]
+    dRx_db = partials["x", "b"]
+    dRx_dc = partials["x", "c"]
+    dRx_dx = partials["x", "x"]
+
+    @. dRx_da = x^2
+    @. dRx_db = x
+    @. dRx_dc = 1
+    @. dRx_dx = 2*a*x + b
+
+    return nothing
+end
+
+function OpenMDAOCore.guess_nonlinear!(self::GuessNonlinearImplicit, inputs, outputs, residuals)
+    @. outputs["x"] = self.xguess
+    return nothing
+end
+
 end # module

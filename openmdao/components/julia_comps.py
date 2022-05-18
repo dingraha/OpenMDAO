@@ -33,7 +33,7 @@ if HAVE_JULIA:
 
         for var in output_data:
             self.add_output(var.name, shape=var.shape, val=var.val,
-                            units=var.units)
+                            units=var.units, lower=var.lower, upper=var.upper)
 
         for data in partials_data:
             self.declare_partials(data.of, data.wrt,
@@ -165,6 +165,9 @@ if HAVE_JULIA:
                     d_residuals_dict = juliacall.convert(jl.Dict, dict(d_residuals))
 
                     jl.OpenMDAOCore.solve_linear_b(self._jlcomp, d_outputs_dict, d_residuals_dict, mode)
+
+        def _configure(self):
+            super()._configure()
 
             if jl.OpenMDAOCore.has_guess_nonlinear(self._jlcomp):
                 def guess_nonlinear(self, inputs, outputs, residuals):
