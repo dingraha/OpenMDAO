@@ -21,7 +21,7 @@ class TestSimpleJuliaExplicitComp(unittest.TestCase):
 
     def setUp(self):
         p = self.p = om.Problem()
-        ecomp = jl.ECompTest.EComp1()
+        ecomp = jl.ECompTest.ECompSimple()
         comp = om.JuliaExplicitComp(jlcomp=ecomp)
         p.model.add_subsystem("ecomp", comp, promotes_inputs=["x"], promotes_outputs=["y"])
         p.setup(force_alloc_complex=True)
@@ -55,7 +55,7 @@ class TestJuliaExplicitCompWithOption(unittest.TestCase):
     def setUp(self):
         p = self.p = om.Problem()
         a = self.a = 0.5
-        ecomp = jl.ECompTest.EComp2(a)
+        ecomp = jl.ECompTest.ECompWithOption(a)
         comp = om.JuliaExplicitComp(jlcomp=ecomp)
         p.model.add_subsystem("ecomp", comp, promotes_inputs=["x"], promotes_outputs=["y"])
         p.setup(force_alloc_complex=True)
@@ -89,7 +89,7 @@ class TestJuliaExplicitCompWithLargeOption(unittest.TestCase):
     def setUp(self):
         n_small = self.n_small = 10
         p_small = self.p_small = om.Problem()
-        ecomp_small = jl.ECompTest.EComp3(n_small)
+        ecomp_small = jl.ECompTest.ECompWithLargeOption(n_small)
         comp_small = om.JuliaExplicitComp(jlcomp=ecomp_small)
         p_small.model.add_subsystem("ecomp", comp_small, promotes_inputs=["x"], promotes_outputs=["y"])
         p_small.setup(force_alloc_complex=True)
@@ -98,7 +98,7 @@ class TestJuliaExplicitCompWithLargeOption(unittest.TestCase):
 
         n_big = self.n_big = 1_000_000_000
         p_big = self.p_big = om.Problem()
-        ecomp_big = jl.ECompTest.EComp3(n_big)
+        ecomp_big = jl.ECompTest.ECompWithLargeOption(n_big)
         comp_big = om.JuliaExplicitComp(jlcomp=ecomp_big)
         p_big.model.add_subsystem("ecomp", comp_big, promotes_inputs=["x"], promotes_outputs=["y"])
         p_big.setup(force_alloc_complex=True)
@@ -144,6 +144,51 @@ class TestJuliaExplicitCompWithLargeOption(unittest.TestCase):
 
         # Compare the average timings.
         np.testing.assert_almost_equal(time_avg[1]/time_avg[0], 1.0, decimal=1)
+
+
+class TestJuliaMatrixFreeExplicitComp(unittest.TestCase):
+
+    def setUp(self):
+        p = self.p = om.Problem()
+        ecomp = jl.ECompTest.ECompMatrixFree()
+        comp = om.JuliaExplicitComp(jlcomp=ecomp)
+        p.model.add_subsystem("ecomp", comp, promotes_inputs=["x1", "x2"], promotes_outputs=["y1", "y2"])
+        p.setup(force_alloc_complex=True)
+        p.set_val("x1", np.arange(2*3).reshape(2,3)+0.5)
+        p.set_val("x2", np.arange(2*3).reshape(2,3)+1)
+        p.run_model()
+
+    def test_results(self):
+        p = self.p
+        expected = 2*p.get_val("x1") + 3*p.get_val("x2")**2
+        actual = p.get_val("y1")
+        np.testing.assert_almost_equal(actual, expected)
+
+        expected = 4*p.get_val("x1")**3 + 5*p.get_val("x2")**4
+        actual = p.get_val("y2")
+        np.testing.assert_almost_equal(actual, expected)
+
+    def test_partials(self):
+        p = self.p
+        np.set_printoptions(linewidth=1024)
+        cpd = self.p.check_partials(compact_print=True, out_stream=None, method='cs')
+
+        # Check that partials approximated by the complex-step method match the user-provided partials.
+        for comp in cpd:
+            for (var, wrt) in cpd[comp]:
+                np.testing.assert_allclose(actual=cpd[comp][var, wrt]['J_fwd'], desired=cpd[comp][var, wrt]['J_fd'], rtol=1e-12)
+                np.testing.assert_allclose(actual=cpd[comp][var, wrt]['J_rev'], desired=cpd[comp][var, wrt]['J_fd'], rtol=1e-12)
+
+        p.set_val("x1", np.arange(2*3).reshape(2,3)+4)
+        p.set_val("x2", np.arange(2*3).reshape(2,3)+5)
+
+        cpd = self.p.check_partials(compact_print=True, out_stream=None, method='cs')
+
+        # Check that partials approximated by the complex-step method match the user-provided partials.
+        for comp in cpd:
+            for (var, wrt) in cpd[comp]:
+                np.testing.assert_allclose(actual=cpd[comp][var, wrt]['J_fwd'], desired=cpd[comp][var, wrt]['J_fd'], rtol=1e-12)
+                np.testing.assert_allclose(actual=cpd[comp][var, wrt]['J_rev'], desired=cpd[comp][var, wrt]['J_fd'], rtol=1e-12)
 
 
 class TestSimpleJuliaImplicitComp(unittest.TestCase):
