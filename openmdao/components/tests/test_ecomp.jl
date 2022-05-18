@@ -68,11 +68,14 @@ function OpenMDAOCore.compute_partials!(self::ECompWithLargeOption, inputs, part
     return nothing
 end
 
-struct ECompMatrixFree <: OpenMDAOCore.AbstractExplicitComp end
+struct ECompMatrixFree <: OpenMDAOCore.AbstractExplicitComp
+    nrows::Int
+    ncols::Int
+end
 
 function OpenMDAOCore.setup(self::ECompMatrixFree)
-    input_data = [VarData("x1"; shape=(2, 3)), VarData("x2"; shape=(2, 3))]
-    output_data = [VarData("y1"; shape=(2, 3)), VarData("y2"; shape=(2, 3))]
+    input_data = [VarData("x1"; shape=(2, 3)), VarData("x2"; shape=(self.nrows, self.ncols))]
+    output_data = [VarData("y1"; shape=(2, 3)), VarData("y2"; shape=(self.nrows, self.ncols))]
     partials_data = [PartialsData("*", "*")]  # I think this should work.
 
     return input_data, output_data, partials_data
@@ -100,22 +103,18 @@ function OpenMDAOCore.compute_jacvec_product!(self::ECompMatrixFree, inputs, d_i
         if y1dot !== nothing
             fill!(y1dot, 0)
             if x1dot !== nothing
-                # d_outputs["y1"][1] += 2*d_inputs["x1"][1]
                 @. y1dot += 2*x1dot
             end
             if x2dot !== nothing
-                # d_outputs["y1"][1] += 6*inputs["x2"][1]*d_inputs["x2"][1]
                 @. y1dot += 6*x2*x2dot
             end
         end
         if y2dot !== nothing
             fill!(y2dot, 0)
             if x1dot !== nothing
-                # d_outputs["y2"][1] += 12*inputs["x1"][1]^2*d_inputs["x1"]
                 @. y2dot += 12*x1^2*x1dot
             end
             if x2dot !== nothing
-                # d_outputs["y2"][1] += 6*inputs["x2"][1]*d_inputs["x2"][1]
                 @. y2dot += 20*x2^3*x2dot
             end
         end
