@@ -410,6 +410,100 @@ class TestMatrixFreeImplicitComp(unittest.TestCase):
                                                decimal=12)
 
 
+class TestSolveLinearImplicitComp(unittest.TestCase):
+
+    def setUp(self):
+        n = self.n = 10
+        a = self.a = 3.0
+
+        p = self.p_fwd = om.Problem()
+        icomp = jl.ICompTest.SolveLinearImplicit(n, a)
+        comp = om.JuliaImplicitComp(jlcomp=icomp)
+        p.model.add_subsystem("icomp", comp, promotes_inputs=["x", "y"], promotes_outputs=["z1", "z2"])
+
+        p.setup(force_alloc_complex=True, mode="fwd")
+        p.set_val("x", np.arange(n)+0.5)
+        p.set_val("y", np.arange(n)+2)
+        p.run_model()
+
+        p = self.p_rev = om.Problem()
+        icomp = jl.ICompTest.SolveLinearImplicit(n, a)
+        comp = om.JuliaImplicitComp(jlcomp=icomp)
+        p.model.add_subsystem("icomp", comp, promotes_inputs=["x", "y"], promotes_outputs=["z1", "z2"])
+
+        p.setup(force_alloc_complex=True, mode="rev")
+        p.set_val("x", np.arange(n)+0.5)
+        p.set_val("y", np.arange(n)+2)
+        p.run_model()
+
+    def test_results(self):
+        for p in [self.p_fwd, self.p_rev]:
+            a = self.a
+            expected = a*p.get_val("x")**2 + p.get_val("y")**2
+            actual = p.get_val("z1")
+            np.testing.assert_almost_equal(actual, expected)
+            expected = a*p.get_val("x") + p.get_val("y")
+            actual = p.get_val("z2")
+            np.testing.assert_almost_equal(actual, expected)
+
+    def test_partials(self):
+        for p in [self.p_fwd, self.p_rev]:
+            np.set_printoptions(linewidth=1024)
+            cpd = p.check_partials(compact_print=True, out_stream=None, method='cs')
+
+            # Check that the partials the user provided are correct.
+            icomp_partials = cpd["icomp"]
+
+            actual = icomp_partials["z1", "x"]['J_fwd']
+            expected = np.zeros((self.n, self.n))
+            expected[range(self.n), range(self.n)] = 2*self.a*p.get_val("x")
+            np.testing.assert_almost_equal(actual=actual, desired=expected, decimal=12)
+
+            actual = icomp_partials["z1", "y"]['J_fwd']
+            expected = np.zeros((self.n, self.n))
+            expected[range(self.n), range(self.n)] = 2*p.get_val("y")
+            np.testing.assert_almost_equal(actual=actual, desired=expected, decimal=12)
+
+            actual = icomp_partials["z1", "z1"]['J_fwd']
+            expected = np.zeros((self.n, self.n))
+            expected[range(self.n), range(self.n)] = -1.0
+            np.testing.assert_almost_equal(actual=actual, desired=expected, decimal=12)
+
+            actual = icomp_partials["z2", "x"]['J_fwd']
+            expected = np.zeros((self.n, self.n))
+            expected[range(self.n), range(self.n)] = self.a
+            np.testing.assert_almost_equal(actual=actual, desired=expected, decimal=12)
+
+            actual = icomp_partials["z2", "y"]['J_fwd']
+            expected = np.zeros((self.n, self.n))
+            expected[range(self.n), range(self.n)] = 1.0
+            np.testing.assert_almost_equal(actual=actual, desired=expected, decimal=12)
+
+            actual = icomp_partials["z2", "z2"]['J_fwd']
+            expected = np.zeros((self.n, self.n))
+            expected[range(self.n), range(self.n)] = -1.0
+            np.testing.assert_almost_equal(actual=actual, desired=expected, decimal=12)
+
+            # Check that partials approximated by the complex-step method match the user-provided partials.
+            for comp in cpd:
+                for (var, wrt) in cpd[comp]:
+                    np.testing.assert_almost_equal(actual=cpd[comp][var, wrt]['J_fwd'],
+                                                   desired=cpd[comp][var, wrt]['J_fd'],
+                                                   decimal=12)
+                    # np.testing.assert_almost_equal(actual=cpd[comp][var, wrt]['J_rev'],
+                    #                                desired=cpd[comp][var, wrt]['J_fd'],
+                    #                                decimal=12)
+
+    def test_totals(self):
+        for p in [self.p_fwd, self.p_rev]:
+            ctd = p.check_totals(of=["z1", "z2"], wrt=["x", "y"], method='cs', compact_print=True, out_stream=None)
+            for of_wrt in ctd:
+                np.testing.assert_almost_equal(actual=ctd[of_wrt]['J_fwd'],
+                                               desired=ctd[of_wrt]['J_fd'],
+                                               decimal=12)
+
+
+
 class TestGuessNonlinearImplicitComp(unittest.TestCase):
 
     def setUp(self):

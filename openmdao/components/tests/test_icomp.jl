@@ -1,6 +1,7 @@
 module ICompTest
 
 using OpenMDAOCore
+using LinearAlgebra
 
 struct SimpleImplicit{TI,TF} <: OpenMDAOCore.AbstractImplicitComp
     n::TI  # these would be like "options" in openmdao
@@ -243,6 +244,144 @@ function OpenMDAOCore.apply_linear!(self::MatrixFreeImplicit, inputs, outputs, d
             end
         end
     end
+end
+
+struct SolveLinearImplicit{TI,TF} <: OpenMDAOCore.AbstractImplicitComp
+    n::TI  # these would be like "options" in openmdao
+    a::TF
+end
+
+function OpenMDAOCore.setup(self::SolveLinearImplicit)
+ 
+    n = self.n
+    inputs = [
+        VarData("x"; shape=n, val=[2.0]),
+        VarData("y"; shape=(n,), val=3.0)]
+
+    outputs = [
+        VarData("z1"; shape=(n,), val=fill(2.0, n)),
+        VarData("z2"; shape=n, val=3.0)]
+
+    rows = 0:n-1
+    cols = 0:n-1
+    partials = [
+        PartialsData("z1", "x"; rows=rows, cols=cols),
+        PartialsData("z1", "y"; rows, cols),
+        PartialsData("z1", "z1"; rows, cols),
+        PartialsData("z2", "x"; rows, cols),
+        PartialsData("z2", "y"; rows, cols),          
+        PartialsData("z2", "z2"; rows, cols)
+    ]
+
+    return inputs, outputs, partials
+end
+
+function OpenMDAOCore.apply_nonlinear!(self::SolveLinearImplicit, inputs, outputs, residuals)
+    a = self.a
+    x = inputs["x"]
+    y = inputs["y"]
+
+    @. residuals["z1"] = (a*x*x + y*y) - outputs["z1"]
+    @. residuals["z2"] = (a*x + y) - outputs["z2"]
+
+    return nothing
+end
+
+function OpenMDAOCore.solve_nonlinear!(self::SolveLinearImplicit, inputs, outputs)
+    a = self.a
+    x = inputs["x"]
+    y = inputs["y"]
+
+    @. outputs["z1"] = a*x*x + y*y
+    @. outputs["z2"] = a*x + y
+
+    return nothing
+end
+
+function OpenMDAOCore.linearize!(self::SolveLinearImplicit, inputs, outputs, partials)
+    a = self.a
+    x = inputs["x"]
+    y = inputs["y"]
+
+    @. partials["z1", "z1"] = -1.0
+    @. partials["z1", "x"] = 2*a*x
+    @. partials["z1", "y"] = 2*y
+
+    @. partials["z2", "z2"] = -1.0
+    @. partials["z2", "x"] = a
+    @. partials["z2", "y"] = 1.0
+
+    return nothing
+end
+
+function OpenMDAOCore.solve_linear!(self::SolveLinearImplicit, d_outputs, d_residuals, mode)
+    n = self.n
+    a = self.a
+
+    z1dot = get(d_outputs, "z1", nothing)
+    z2dot = get(d_outputs, "z2", nothing)
+    Rz1dot = get(d_residuals, "z1", nothing)
+    Rz2dot = get(d_residuals, "z2", nothing)
+
+    if mode == "fwd"
+        # In forward mode, the goal is to calculate the total derivatives of the
+        # implicit outputs wrt an upstream input, given the
+        # derivatives of the residuals wrt the upstream input.
+        if z1dot !== nothing
+            pRz1_pz1 = zeros(self.n, self.n)
+            for i in 1:n
+                pRz1_pz1[i, i] = -1
+            end
+            pRz1_pz1_lu = lu(pRz1_pz1)
+            # Annoying: z1dot is a PythonCall.PyArray, which isn't a
+            # StridedArray and so can't be used with ldiv! directly.
+            z1dotfoo = Vector{eltype(z1dot)}(undef, size(z1dot))
+            ldiv!(z1dotfoo, pRz1_pz1_lu, Rz1dot)
+            z1dot .= z1dotfoo
+        end
+
+        if z2dot !== nothing
+            pRz2_pz2 = zeros(self.n, self.n)
+            for i in 1:n
+                pRz2_pz2[i, i] = -1
+            end
+            z2dotfoo = Vector{eltype(z2dot)}(undef, size(z2dot))
+            # Annoying: z1dot is a PythonCall.PyArray, which isn't a
+            # StridedArray and so can't be used with ldiv! directly.
+            ldiv!(z2dotfoo, lu(pRz2_pz2), Rz2dot)
+            z2dot .= z2dotfoo
+        end
+
+    elseif mode == "rev"
+        # In reverse mode, the goal is to calculate the total derivatives of a
+        # downstream output wrt a residual, given the total derivative of the
+        # downstream output wrt the residual.
+        if Rz1dot !== nothing
+            pRz1_pz1 = zeros(self.n, self.n)
+            for i in 1:n
+                pRz1_pz1[i, i] = -1
+            end
+            # The partial derivative of z1's residual wrt z1 is diagonal, so
+            # it's equal to it's transpose.
+            # ldiv!(z1dot, pRz1_pz1, Rz1dot)
+            Rz1dotfoo = Vector{eltype(Rz1dot)}(undef, size(Rz1dot))
+            ldiv!(Rz1dotfoo, lu(pRz1_pz1), z1dot)
+            Rz1dot .= Rz1dotfoo
+        end
+        if Rz2dot != nothing
+            pRz2_pz2 = zeros(self.n, self.n)
+            for i in 1:n
+                pRz2_pz2[i, i] = -1
+            end
+            # The partial derivative of z2's residual wrt z2 is diagonal, so
+            # it's equal to it's transpose.
+            # ldiv!(z2dot, pRz2_pz2, Rz2dot)
+            Rz2dotfoo = Vector{eltype(Rz2dot)}(undef, size(Rz2dot))
+            ldiv!(Rz2dotfoo, lu(pRz2_pz2), z2dot)
+            Rz2dot .= Rz2dotfoo
+        end
+    end
+    return nothing
 end
 
 struct GuessNonlinearImplicit{TI,TF} <: OpenMDAOCore.AbstractImplicitComp

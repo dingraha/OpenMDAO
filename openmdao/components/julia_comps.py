@@ -166,6 +166,10 @@ if HAVE_JULIA:
 
                     jl.OpenMDAOCore.solve_linear_b(self._jlcomp, d_outputs_dict, d_residuals_dict, mode)
 
+                # Hello Owen. Red Knights vs Greens.
+                self.solve_linear = MethodType(solve_linear, self)
+
+
         def _configure(self):
             super()._configure()
 

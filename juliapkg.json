@@ -1,1 +1,1 @@
-{"packages": {"OpenMDAOCore": {"uuid": "24d19c10-6eee-420f-95df-4537264b2753", "version": "0.2.1"}}}
+{"packages": {"OpenMDAOCore": {"uuid": "24d19c10-6eee-420f-95df-4537264b2753", "version": "0.2.1"}, "LinearAlgebra": {"uuid": "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"}}}
