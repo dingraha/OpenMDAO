@@ -1,4 +1,5 @@
 import re
+import os
 import sys
 
 from setuptools import setup
@@ -44,11 +45,22 @@ optional_dependencies = {
         'playwright>=1.20',
         'num2words'
     ],
-    'julia': [
-        'juliapkg',
-        'juliacall'
-    ]
 }
+
+install_requires=[
+    'networkx>=2.0',
+    'numpy',
+    'pyDOE2',
+    'pyparsing',
+    'scipy',
+    'requests']
+
+FORCE_JULIA_INSTALL = os.getenv("OPENMDAO_FORCE_JULIA_INSTALL", default=False)
+if FORCE_JULIA_INSTALL:
+    install_requires += ['juliapkg', 'juliacall']
+else:
+    optional_dependencies['julia'] = ['juliapkg', 'juliacall']
+
 
 # Add an optional dependency that concatenates all others
 optional_dependencies['all'] = sorted([
@@ -177,14 +189,7 @@ setup(
         'openmdao': ['*/tests/*.py', '*/*/tests/*.py', '*/*/*/tests/*.py']
     },
     python_requires=">=3.7",
-    install_requires=[
-        'networkx>=2.0',
-        'numpy',
-        'pyDOE2',
-        'pyparsing',
-        'scipy',
-        'requests'
-    ],
+    install_requires=install_requires,
     entry_points={
         'console_scripts': [
             'wingproj=openmdao.devtools.wingproj:run_wing',
