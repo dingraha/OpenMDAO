@@ -3,10 +3,7 @@ from types import MethodType
 import openmdao.api as om
 
 try:
-    # The PythonCall/JuliaCall docs say I should create a new module to avoid polluting Main, but then the seval command below doesn't work.
-    # Should change this to creating a new Julia module once this bug is fixed: https://github.com/cjdoris/PythonCall.jl/issues/170
-    # import juliacall; jl = juliacall.newmodule("OMJL")
-    import juliacall; jl = juliacall.Main
+    import juliacall; jl = juliacall.newmodule("OpenMDAOJuliaComps")
     HAVE_JULIA = True
 except ImportError:
     JuliaExplicitComp = None
