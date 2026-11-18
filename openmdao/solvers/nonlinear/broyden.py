@@ -582,11 +582,7 @@ class BroydenSolver(NonlinearSolver):
         inv_jac = self.Gm
         d_res.set_val(0.0)
 
-        # Disable local fd
-        approx_status = system._owns_approx_jac
-        system._owns_approx_jac = False
-
-        try:
+        with system._residual_jacobian_context():
             # Linearize model.
             ln_solver = self.linear_solver
             system._linearize(sub_do_ln=ln_solver._linearize_children())
@@ -621,9 +617,6 @@ class BroydenSolver(NonlinearSolver):
                             d_res[wrt_name] = 0.0
                         else:
                             d_wrt[j] = 0.0
-        finally:
-            # Enable local fd
-            system._owns_approx_jac = approx_status
 
         return inv_jac
 
@@ -640,20 +633,13 @@ class BroydenSolver(NonlinearSolver):
         """
         system = self._system()
 
-        # Disable local fd
-        approx_status = system._owns_approx_jac
-        system._owns_approx_jac = False
-
-        try:
+        with system._residual_jacobian_context():
             # Linearize model.
             ln_solver = self.linear_solver
             do_sub_ln = ln_solver._linearize_children()
             system._linearize(sub_do_ln=do_sub_ln)
 
             inv_jac = self.linear_solver._inverse()
-        finally:
-            # Enable local fd
-            system._owns_approx_jac = approx_status
 
         return inv_jac
 

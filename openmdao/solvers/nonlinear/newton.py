@@ -212,11 +212,8 @@ class NewtonSolver(NonlinearSolver):
             (self._iter_count < self.options['max_sub_solves'])
         do_sub_ln = self.linear_solver._linearize_children()
 
-        # Disable local fd
-        approx_status = system._owns_approx_jac
-        system._owns_approx_jac = False
-
-        try:
+        # Solve the residual equations, not descendants' explicit semi-total blocks.
+        with system._residual_jacobian_context():
             system._dresiduals.set_vec(system._residuals)
             system._dresiduals *= -1.0
             system._linearize(sub_do_ln=do_sub_ln)
@@ -239,9 +236,6 @@ class NewtonSolver(NonlinearSolver):
                     self._solver_info.append_solver()
                     self._gs_iter()
                     self._solver_info.pop()
-        finally:
-            # Enable local fd
-            system._owns_approx_jac = approx_status
 
     def _set_complex_step_mode(self, active):
         """

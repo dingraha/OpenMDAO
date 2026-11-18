@@ -2761,6 +2761,60 @@ class System(object, metaclass=SystemMetaclass):
         return maps
 
     @contextmanager
+    def _residual_jacobian_context(self):
+        """
+        Suspend group approximations while a nonlinear solver solves component residuals.
+
+        Descendant approximations must also be suspended: their explicit semi-total blocks
+        do not differentiate the residuals evaluated by an ancestor nonlinear solver.
+        Assembled Jacobians use separate residual metadata and caches in this context.
+        """
+        from openmdao.core.group import Group
+        from openmdao.core.component import Component
+
+        groups = list(self.system_iter(include_self=True, recurse=True, typ=Group))
+        residual_ancestors = set()
+        for group in groups:
+            if group._approx_schemes:
+                residual_ancestors.add('')
+                residual_ancestors.update(all_ancestors(group.pathname.rpartition('.')[0]))
+        states = []
+        try:
+            for group in groups:
+                owns_approx = group._owns_approx_jac
+                group._owns_approx_jac = False
+                states.append((group, owns_approx, None))
+
+                # Only ancestors of approximating descendants need a different assembled
+                # structure. A group's own approximation already has private metadata.
+                if group.pathname not in residual_ancestors:
+                    continue
+
+                solvers = [(solver, solver._assembled_jac) for solver, _ in
+                           group._get_asm_jac_solvers()]
+                saved = (group._subjacs_info, group._jacobian, group._assembled_jac, solvers)
+                states[-1] = (group, owns_approx, saved)
+                info = {}
+                for comp in group.system_iter(recurse=True, typ=Component):
+                    info.update(comp._subjacs_info)
+                group._subjacs_info = info
+                group._assembled_jac = group._residual_assembled_jac
+                group._jacobian = None if group._approx_schemes else group._assembled_jac
+                for solver, _ in solvers:
+                    solver._assembled_jac = group._assembled_jac
+
+            yield
+        finally:
+            for group, owns_approx, saved in reversed(states):
+                if saved is not None:
+                    group._residual_assembled_jac = group._assembled_jac
+                    (group._subjacs_info, group._jacobian, group._assembled_jac,
+                     solvers) = saved
+                    for solver, jac in solvers:
+                        solver._assembled_jac = jac
+                group._owns_approx_jac = owns_approx
+
+    @contextmanager
     def _unscaled_context(self, outputs=(), residuals=()):
         """
         Context manager for units and scaling for vectors.

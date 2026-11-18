@@ -170,6 +170,8 @@ class Group(System):
         Cache for the system graph.
     _key_owner : dict
         The owning rank keyed by absolute jacobian key.
+    _residual_assembled_jac : AssembledJacobian or None
+        Cached assembled residual Jacobian used when descendant approximations are suspended.
     _approx_subjacs_info : dict or None
         Subjac metadata used by this group's approximation of its own derivatives.  Keys that
         are also a descendant component's own partials have private metadata here, because the
@@ -209,6 +211,7 @@ class Group(System):
         self._sys_graph_cache = None
         self._key_owner = None
         self._approx_subjacs_info = None
+        self._residual_assembled_jac = None
 
         # TODO: we cannot set the solvers with property setters at the moment
         # because our lint check thinks that we are defining new attributes
@@ -3030,6 +3033,7 @@ class Group(System):
         """
         self._subjacs_info = info = {}
         self._approx_subjacs_info = None
+        self._residual_assembled_jac = None
         conn_graph = self.get_conn_graph()
         nodes = conn_graph.nodes()
 
